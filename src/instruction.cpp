@@ -318,7 +318,7 @@ class StoreInstruction : public ArgInstruction {
 
     virtual void generateCode(BlockGenerator &blockgen) const {
       if (arg->isAbsolute()) {
-        blockgen.getMachine().generateStore(arg->getAddrArg(location), blockgen.getRegValue(REG_A), blockgen);
+        blockgen.getMachine().generateStore(arg->getAddrArg(location), blockgen.getRegValue(reg), blockgen);
       }
     }
 
