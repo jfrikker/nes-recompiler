@@ -14,6 +14,8 @@ using llvm::Value;
 using llvm::getGlobalContext;
 using llvm::Constant;
 using llvm::APInt;
+using llvm::ConstantAggregateZero;
+using llvm::ArrayRef;
 
 const char *NES_IDENTIFIER = "NES\x1a";
 
@@ -70,14 +72,18 @@ word NesMachineSpec::readWord(addr address) const {
 }
 
 void NesMachineSpec::writeLLVMHeader(ModuleGenerator &modgen) const {
-  new GlobalVariable(modgen.getModule(), ArrayType::get(modgen.getWordType(), 65536), false, GlobalValue::PrivateLinkage, NULL, "ram");
+  ArrayType *ramType = ArrayType::get(modgen.getWordType(), 65536);
+  GlobalVariable *ram = new GlobalVariable(modgen.getModule(), ramType, false, GlobalValue::ExternalLinkage, NULL, "ram");
+  ConstantAggregateZero* ramInit = ConstantAggregateZero::get(ramType);
+  ram->setInitializer(ramInit);
 }
 
 Value *NesMachineSpec::generateLoad(addr address, BlockGenerator &blockgen) const {
   IRBuilder<> &builder = blockgen.getBuilder();
-  Value *ram = blockgen.getModule().getGlobalVariable("ram", true);
+  Value *ram = blockgen.getModule().getGlobalVariable("ram", false);
   Value *offset = blockgen.getConstant(address);
-  Value *ptr = builder.CreateExtractElement(ram, offset);
+  Value *indexList[2] = {blockgen.getConstant((addr)0), offset};
+  Value *ptr = builder.CreateGEP(ram, ArrayRef<Value *>(indexList, 2));
   return builder.CreateLoad(ptr);
 }
 
@@ -85,6 +91,7 @@ void NesMachineSpec::generateStore(addr address, llvm::Value *value, BlockGenera
   IRBuilder<> &builder = blockgen.getBuilder();
   Value *ram = blockgen.getModule().getGlobalVariable("ram", true);
   Value *offset = blockgen.getConstant(address);
-  Value *ptr = builder.CreateExtractElement(ram, offset);
+  Value *indexList[2] = {blockgen.getConstant((addr)0), offset};
+  Value *ptr = builder.CreateGEP(ram, ArrayRef<Value *>(indexList, 2));
   builder.CreateStore(value, ptr);
 }

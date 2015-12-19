@@ -1,5 +1,8 @@
 #include "instruction.hpp"
 
+#include <vector>
+using std::vector;
+
 #include <iomanip>
 using std::hex;
 using std::uppercase;
@@ -9,8 +12,12 @@ using std::setw;
 #include <iostream>
 using std::ostream;
 
+#include <llvm/IR/Intrinsics.h>
 using llvm::Value;
 using llvm::IRBuilder;
+using llvm::Type;
+using llvm::Function;
+using llvm::ArrayRef;
 
 #include "machine_spec.hpp"
 
@@ -352,10 +359,24 @@ class CompareInstruction : public ArgInstruction {
 
     virtual void generateCode(BlockGenerator &blockgen) const {
       Value *argVal = arg->getWordArgExpr(location, blockgen);
+
       Value *regVal = blockgen.getRegValue(reg);
-      Value *val = blockgen.getBuilder().CreateSub(regVal, argVal);
-      setRegN(val, blockgen);
-      setRegZ(val, blockgen);
+      vector<Type *> argType;
+      argType.push_back(blockgen.getWordType());
+      Function *sub = llvm::Intrinsic::getDeclaration(&blockgen.getModule(), llvm::Intrinsic::ssub_with_overflow, argType);
+
+      Value *args[2] = {regVal, argVal};
+      Value *tmp = blockgen.getBuilder().CreateCall(sub, ArrayRef<Value *>(args, 2));
+
+      unsigned int first[1] = {0};
+      Value *difference = blockgen.getBuilder().CreateExtractValue(tmp, ArrayRef<unsigned int>(first, 1));
+
+      unsigned int second[1] = {1};
+      Value *carry = blockgen.getBuilder().CreateExtractValue(tmp, ArrayRef<unsigned int>(second, 1));
+
+      setRegN(difference, blockgen);
+      setRegZ(difference, blockgen);
+      blockgen.setRegValue(REG_C, carry);
     }
 
   private:
@@ -432,22 +453,65 @@ class BPL : public BranchInstruction {
     BranchInstruction("BPL", REG_N, true, location, argument){ }
 };
 
+class IncrementInstruction : public NoArgInstruction {
+  public:
+    IncrementInstruction(const char *opcode, Register reg, bool decrement, addr location) :
+    NoArgInstruction(location, opcode),
+    reg(reg),
+    decrement(decrement){ }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      Value *lhs = blockgen.getRegValue(reg);
+      Value *rhs = blockgen.getConstant((word)1);
+
+      Value *value;
+      if (decrement) {
+        value = blockgen.getBuilder().CreateSub(lhs, rhs);
+      } else {
+        value = blockgen.getBuilder().CreateAdd(lhs, rhs);
+      }
+
+      blockgen.setRegValue(reg, value);
+      setRegN(value, blockgen);
+      setRegZ(value, blockgen);
+    }
+
+  private:
+    Register reg;
+    bool decrement;
+};
+
+class INX : public IncrementInstruction {
+  public:
+    INX(addr location) :
+    IncrementInstruction("INX", REG_X, false, location){ }
+};
+
+class INY : public IncrementInstruction {
+  public:
+    INY(addr location) :
+    IncrementInstruction("INY", REG_Y, false, location){ }
+};
+
+class DEX : public IncrementInstruction {
+  public:
+    DEX(addr location) :
+    IncrementInstruction("DEX", REG_X, true, location){ }
+};
+
+class DEY : public IncrementInstruction {
+  public:
+    DEY(addr location) :
+    IncrementInstruction("DEY", REG_Y, true, location){ }
+};
+
 DEF_WORD_ARG_INST(BIT)
 };
 
 DEF_NO_ARG_INST(CLD)
 };
 
-DEF_NO_ARG_INST(DEX)
-};
-
-DEF_NO_ARG_INST(DEY)
-};
-
 DEF_ADDR_ARG_INST(INC)
-};
-
-DEF_NO_ARG_INST(INY)
 };
 
 DEF_ADDR_ARG_INST(JMP)
