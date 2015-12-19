@@ -15,6 +15,8 @@ class NesMachineSpec : public MachineSpec {
     virtual word readWord(addr) const;
     virtual void writeLLVMHeader(ModuleGenerator &modgen) const;
     virtual llvm::Value *generateLoad(addr address, BlockGenerator &blockgen) const;
+    virtual void generateStore(addr address, llvm::Value *value, BlockGenerator &blockgen) const;
+
   private:
     addr prgRomOffset;
     addr prgRomSize;

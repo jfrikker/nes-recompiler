@@ -1,5 +1,8 @@
 #include "codegen.hpp"
 
+#include <map>
+using std::map;
+
 using llvm::Module;
 using llvm::IRBuilder;
 using llvm::Type;
@@ -35,6 +38,10 @@ Type *ModuleGenerator::getAddrType() const {
   return Type::getInt16Ty(getGlobalContext());
 }
 
+Type *ModuleGenerator::getFlagType() const {
+  return Type::getInt1Ty(getGlobalContext());
+}
+
 Value *ModuleGenerator::getConstant(word val) const {
   return Constant::getIntegerValue(getWordType(), APInt(8, val));
 }
@@ -43,9 +50,31 @@ Value *ModuleGenerator::getConstant(addr val) const {
   return Constant::getIntegerValue(getAddrType(), APInt(16, val));
 }
 
-BlockGenerator::BlockGenerator(ModuleGenerator &moduleGenerator, BasicBlock *block) : 
+BlockGenerator::BlockGenerator(ModuleGenerator &moduleGenerator, BasicBlock *block, map<addr, BlockGenerator *> &blocks) : 
   modgen(moduleGenerator),
-  builder(block) { }
+  builder(block),
+  blocks(blocks) {
+  phis[REG_A] = builder.CreatePHI(getWordType(), 0);
+  setRegValue(REG_A, phis[REG_A]);
+
+  phis[REG_X] = builder.CreatePHI(getWordType(), 0);
+  setRegValue(REG_X, phis[REG_X]);
+
+  phis[REG_Y] = builder.CreatePHI(getWordType(), 0);
+  setRegValue(REG_Y, phis[REG_Y]);
+
+  phis[REG_N] = builder.CreatePHI(getFlagType(), 0);
+  setRegValue(REG_N, phis[REG_N]);
+
+  phis[REG_V] = builder.CreatePHI(getFlagType(), 0);
+  setRegValue(REG_V, phis[REG_V]);
+
+  phis[REG_Z] = builder.CreatePHI(getFlagType(), 0);
+  setRegValue(REG_Z, phis[REG_Z]);
+
+  phis[REG_C] = builder.CreatePHI(getFlagType(), 0);
+  setRegValue(REG_C, phis[REG_C]);
+}
 
 Module &BlockGenerator::getModule() {
   return modgen.getModule();
@@ -53,6 +82,10 @@ Module &BlockGenerator::getModule() {
 
 const MachineSpec &BlockGenerator::getMachine() const {
   return modgen.getMachine();
+}
+
+BasicBlock *BlockGenerator::getBlock() {
+  return builder.GetInsertBlock();
 }
 
 IRBuilder<> &BlockGenerator::getBuilder() {
@@ -65,6 +98,10 @@ Type *BlockGenerator::getWordType() const {
 
 Type *BlockGenerator::getAddrType() const {
   return modgen.getAddrType();
+}
+
+Type *BlockGenerator::getFlagType() const {
+  return modgen.getFlagType();
 }
 
 Value *BlockGenerator::getConstant(word val) const {
@@ -81,4 +118,37 @@ Value *BlockGenerator::getRegValue(Register reg) {
 
 void BlockGenerator::setRegValue(Register reg, Value *val) {
   values[reg] = val;
+}
+
+void BlockGenerator::addIncomingValue(Register reg, Value *val, BasicBlock *block) {
+  phis[reg]->addIncoming(val, block);
+}
+
+void BlockGenerator::addIncomingValues(BlockGenerator &blockgen) {
+  BasicBlock *myBlock = getBlock();
+  blockgen.addIncomingValue(REG_A, getRegValue(REG_A), myBlock);
+  blockgen.addIncomingValue(REG_X, getRegValue(REG_X), myBlock);
+  blockgen.addIncomingValue(REG_Y, getRegValue(REG_Y), myBlock);
+  blockgen.addIncomingValue(REG_N, getRegValue(REG_N), myBlock);
+  blockgen.addIncomingValue(REG_V, getRegValue(REG_V), myBlock);
+  blockgen.addIncomingValue(REG_Z, getRegValue(REG_Z), myBlock);
+  blockgen.addIncomingValue(REG_C, getRegValue(REG_C), myBlock);
+}
+
+void BlockGenerator::addIncomingValues(addr blockStart) {
+  addIncomingValues(*(blocks[blockStart]));
+}
+
+void BlockGenerator::generateJump(addr targetBlock) {
+  BlockGenerator *target = blocks[targetBlock];
+  builder.CreateBr(target->getBlock());
+  addIncomingValues(*target);
+}
+
+void BlockGenerator::generateConditionalJump(Value *condition, addr trueBlock, addr falseBlock) {
+  BlockGenerator *trueGen = blocks[trueBlock];
+  BlockGenerator *falseGen = blocks[falseBlock];
+  builder.CreateCondBr(condition, trueGen->getBlock(), falseGen->getBlock());
+  addIncomingValues(*trueGen);
+  addIncomingValues(*falseGen);
 }

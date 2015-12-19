@@ -80,3 +80,11 @@ Value *NesMachineSpec::generateLoad(addr address, BlockGenerator &blockgen) cons
   Value *ptr = builder.CreateExtractElement(ram, offset);
   return builder.CreateLoad(ptr);
 }
+
+void NesMachineSpec::generateStore(addr address, llvm::Value *value, BlockGenerator &blockgen) const {
+  IRBuilder<> &builder = blockgen.getBuilder();
+  Value *ram = blockgen.getModule().getGlobalVariable("ram", true);
+  Value *offset = blockgen.getConstant(address);
+  Value *ptr = builder.CreateExtractElement(ram, offset);
+  builder.CreateStore(value, ptr);
+}

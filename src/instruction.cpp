@@ -46,6 +46,9 @@ class Argument {
     virtual Value *getWordArgExpr(addr instructionAddr, BlockGenerator &blockgen) const {
       return blockgen.getConstant((word)0);
     }
+    virtual bool isAbsolute() const {
+      return false;
+    }
 };
 
 ostream &operator<<(ostream &o, const Argument &mode) {
@@ -68,6 +71,10 @@ class ABSArgument : public Argument {
 
     virtual addr getAddrArg(addr instructionAddr) const {
       return address;
+    }
+
+    virtual bool isAbsolute() const {
+      return true;
     }
 
   private:
@@ -124,6 +131,10 @@ class IMMArgument : public Argument {
       return 1;
     }
 
+    virtual Value *getWordArgExpr(addr instructionAddr, BlockGenerator &blockgen) const {
+      return blockgen.getConstant(val);
+    }
+
   private:
     word val;
 };
@@ -171,7 +182,7 @@ class RELArgument : public Argument {
 class ZPGArgument : public Argument {
   public:
     ZPGArgument(addr address, const MachineSpec &machine) {
-      address = machine.readWord(address);
+      this->address = machine.readWord(address);
     }
 
     ostream &write(ostream& o) const {
@@ -180,6 +191,14 @@ class ZPGArgument : public Argument {
 
     addr getEncodedLength() const {
       return 1;
+    }
+
+    virtual addr getAddrArg(addr instructionAddr) const {
+      return address;
+    }
+
+    virtual bool isAbsolute() const {
+      return true;
     }
 
   private:
@@ -244,31 +263,179 @@ addr Instruction::getFollowingLocation() const {
 
 void Instruction::generateCode(BlockGenerator &codegen) const { }
 
-DEF_ADDR_ARG_INST(BCS)
-DEF_BRANCH
+void setRegN(Value *val, BlockGenerator &blockgen) {
+  Value *zero = blockgen.getConstant((word)0);
+  Value *n = blockgen.getBuilder().CreateICmpSLT(val, zero);
+  blockgen.setRegValue(REG_N, n);
+}
+
+void setRegZ(Value *val, BlockGenerator &blockgen) {
+  Value *zero = blockgen.getConstant((word)0);
+  Value *z = blockgen.getBuilder().CreateICmpEQ(val, zero);
+  blockgen.setRegValue(REG_Z, z);
+}
+
+class LoadInstruction : public ArgInstruction {
+  public:
+    LoadInstruction(const char *opcode, Register reg, addr location, Argument *argument) :
+    ArgInstruction(location, opcode, argument),
+    reg(reg) { }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      Value *val = arg->getWordArgExpr(location, blockgen);
+      blockgen.setRegValue(reg, val);
+      setRegN(val, blockgen);
+      setRegZ(val, blockgen);
+    }
+
+  private:
+    Register reg;
+};
+
+class LDA : public LoadInstruction {
+  public:
+    LDA(addr location, Argument *argument) :
+    LoadInstruction("LDA", REG_A, location, argument){ }
+};
+
+class LDX : public LoadInstruction {
+  public:
+    LDX(addr location, Argument *argument) :
+    LoadInstruction("LDX", REG_X, location, argument){ }
+};
+
+class LDY : public LoadInstruction {
+  public:
+    LDY(addr location, Argument *argument) :
+    LoadInstruction("LDY", REG_Y, location, argument){ }
+};
+
+class StoreInstruction : public ArgInstruction {
+  public:
+    StoreInstruction(const char *opcode, Register reg, addr location, Argument *argument) :
+    ArgInstruction(location, opcode, argument),
+    reg(reg) { }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      if (arg->isAbsolute()) {
+        blockgen.getMachine().generateStore(arg->getAddrArg(location), blockgen.getRegValue(REG_A), blockgen);
+      }
+    }
+
+  private:
+    Register reg;
+};
+
+class STA : public StoreInstruction {
+  public:
+    STA(addr location, Argument *argument) :
+    StoreInstruction("STA", REG_A, location, argument){ }
+};
+
+class STX : public StoreInstruction {
+  public:
+    STX(addr location, Argument *argument) :
+    StoreInstruction("STX", REG_X, location, argument){ }
+};
+
+class STY : public StoreInstruction {
+  public:
+    STY(addr location, Argument *argument) :
+    StoreInstruction("STY", REG_Y, location, argument){ }
+};
+
+class CompareInstruction : public ArgInstruction {
+  public:
+    CompareInstruction(const char *opcode, Register reg, addr location, Argument *argument) :
+    ArgInstruction(location, opcode, argument),
+    reg(reg) { }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      Value *argVal = arg->getWordArgExpr(location, blockgen);
+      Value *regVal = blockgen.getRegValue(reg);
+      Value *val = blockgen.getBuilder().CreateSub(regVal, argVal);
+      setRegN(val, blockgen);
+      setRegZ(val, blockgen);
+    }
+
+  private:
+    Register reg;
+};
+
+class CMP : public CompareInstruction {
+  public:
+    CMP(addr location, Argument *argument) :
+    CompareInstruction("CMP", REG_A, location, argument){ }
+};
+
+class CPX : public CompareInstruction {
+  public:
+    CPX(addr location, Argument *argument) :
+    CompareInstruction("CPX", REG_X, location, argument){ }
+};
+
+class CPY : public CompareInstruction {
+  public:
+    CPY(addr location, Argument *argument) :
+    CompareInstruction("CPY", REG_Y, location, argument){ }
+};
+
+class BranchInstruction : public ArgInstruction {
+  public:
+    BranchInstruction(const char *opcode, Register reg, bool inverse, addr location, Argument *argument) :
+    ArgInstruction(location, opcode, argument),
+    reg(reg),
+    inverse(inverse){ }
+
+    virtual bool isBranch() const {
+      return true;
+    }
+
+    virtual addr getBranchTarget() const {
+      return arg->getAddrArg(location + getEncodedLength());
+    }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      Value *condition = blockgen.getRegValue(reg);
+      addr trueBlock;
+      addr falseBlock;
+      if (inverse) {
+        trueBlock = getFollowingLocation();
+        falseBlock = getBranchTarget();
+      } else {
+        trueBlock = getBranchTarget();
+        falseBlock = getFollowingLocation();
+      }
+      blockgen.generateConditionalJump(condition, trueBlock, falseBlock);
+    }
+
+  private:
+    Register reg;
+    bool inverse;
+};
+
+class BCS : public BranchInstruction {
+  public:
+    BCS(addr location, Argument *argument) :
+    BranchInstruction("BCS", REG_C, false, location, argument){ }
+};
+
+class BNE : public BranchInstruction {
+  public:
+    BNE(addr location, Argument *argument) :
+    BranchInstruction("BNE", REG_Z, true, location, argument){ }
+};
+
+class BPL : public BranchInstruction {
+  public:
+    BPL(addr location, Argument *argument) :
+    BranchInstruction("BPL", REG_N, true, location, argument){ }
 };
 
 DEF_WORD_ARG_INST(BIT)
 };
 
-DEF_ADDR_ARG_INST(BNE)
-DEF_BRANCH
-};
-
-DEF_ADDR_ARG_INST(BPL)
-DEF_BRANCH
-};
-
 DEF_NO_ARG_INST(CLD)
-};
-
-DEF_WORD_ARG_INST(CMP)
-};
-
-DEF_WORD_ARG_INST(CPX)
-};
-
-DEF_WORD_ARG_INST(CPY)
 };
 
 DEF_NO_ARG_INST(DEX)
@@ -292,25 +459,6 @@ DEF_ADDR_ARG_INST(JMP)
 DEF_ADDR_ARG_INST(JSR)
 };
 
-DEF_WORD_ARG_INST(LDA)
-
-  virtual void generateCode(BlockGenerator &blockgen) const {
-    Value *val = arg->getWordArgExpr(location, blockgen);
-    blockgen.setRegValue(REG_A, val);
-  }
-};
-
-DEF_WORD_ARG_INST(LDX)
-
-  virtual void generateCode(BlockGenerator &blockgen) const {
-    Value *val = arg->getWordArgExpr(location, blockgen);
-    blockgen.setRegValue(REG_X, val);
-  }
-};
-
-DEF_WORD_ARG_INST(LDY)
-};
-
 DEF_WORD_ARG_INST(ORA)
 };
 
@@ -321,12 +469,6 @@ DEF_NO_ARG_INST(RTS)
 };
 
 DEF_NO_ARG_INST(SEI)
-};
-
-DEF_ADDR_ARG_INST(STA)
-};
-
-DEF_ADDR_ARG_INST(STX)
 };
 
 DEF_NO_ARG_INST(TXS)

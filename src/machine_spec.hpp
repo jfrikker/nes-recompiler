@@ -14,4 +14,5 @@ class MachineSpec {
 
     virtual void writeLLVMHeader(ModuleGenerator &modgen) const = 0;
     virtual llvm::Value *generateLoad(addr address, BlockGenerator &blockgen) const = 0;
+    virtual void generateStore(addr address, llvm::Value *value, BlockGenerator &blockgen) const = 0;
 };
