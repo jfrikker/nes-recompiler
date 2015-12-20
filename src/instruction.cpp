@@ -53,6 +53,9 @@ class Argument {
     virtual Value *getWordArgExpr(addr instructionAddr, BlockGenerator &blockgen) const {
       return blockgen.getConstant((word)0);
     }
+    virtual Value *getAddrArgExpr(addr instructionAddr, BlockGenerator &blockgen) const {
+      return blockgen.getConstant((addr)0);
+    }
     virtual bool isAbsolute() const {
       return false;
     }
@@ -158,6 +161,17 @@ class INDYArgument : public Argument {
 
     addr getEncodedLength() const {
       return 1;
+    }
+
+    virtual Value *getAddrArgExpr(addr instructionAddr, BlockGenerator &blockgen) const {
+      Value *low = blockgen.getMachine().generateLoad(base, blockgen);
+      Value *high = blockgen.getMachine().generateLoad(base + 1, blockgen);
+      Value *lowext = blockgen.getBuilder().CreateZExt(low, blockgen.getAddrType());
+      Value *highext = blockgen.getBuilder().CreateZExt(high, blockgen.getAddrType());
+      Value *highsh = blockgen.getBuilder().CreateShl(highext, blockgen.getConstant((addr)8));
+      Value *baseAddr = blockgen.getBuilder().CreateAdd(lowext, highsh);
+      Value *regOffset = blockgen.getBuilder().CreateZExt(blockgen.getRegValue(REG_Y), blockgen.getAddrType());
+      return blockgen.getBuilder().CreateAdd(baseAddr, regOffset);
     }
 
   private:
@@ -324,8 +338,11 @@ class StoreInstruction : public ArgInstruction {
     reg(reg) { }
 
     virtual void generateCode(BlockGenerator &blockgen) const {
+      // TODO
       if (arg->isAbsolute()) {
         blockgen.getMachine().generateStore(arg->getAddrArg(location), blockgen.getRegValue(reg), blockgen);
+      } else {
+        blockgen.getMachine().generateStore(arg->getAddrArgExpr(location, blockgen), blockgen.getRegValue(reg), blockgen);
       }
     }
 

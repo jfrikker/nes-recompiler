@@ -87,11 +87,29 @@ Value *NesMachineSpec::generateLoad(addr address, BlockGenerator &blockgen) cons
   return builder.CreateLoad(ptr);
 }
 
+Value *NesMachineSpec::generateLoad(Value *address, BlockGenerator &blockgen) const {
+  // TODO
+  IRBuilder<> &builder = blockgen.getBuilder();
+  Value *ram = blockgen.getModule().getGlobalVariable("ram", false);
+  Value *indexList[2] = {blockgen.getConstant((addr)0), address};
+  Value *ptr = builder.CreateGEP(ram, ArrayRef<Value *>(indexList, 2));
+  return builder.CreateLoad(ptr);
+}
+
 void NesMachineSpec::generateStore(addr address, llvm::Value *value, BlockGenerator &blockgen) const {
   IRBuilder<> &builder = blockgen.getBuilder();
   Value *ram = blockgen.getModule().getGlobalVariable("ram", true);
   Value *offset = blockgen.getConstant(address);
   Value *indexList[2] = {blockgen.getConstant((addr)0), offset};
+  Value *ptr = builder.CreateGEP(ram, ArrayRef<Value *>(indexList, 2));
+  builder.CreateStore(value, ptr);
+}
+
+void NesMachineSpec::generateStore(Value *address, llvm::Value *value, BlockGenerator &blockgen) const {
+  // TODO
+  IRBuilder<> &builder = blockgen.getBuilder();
+  Value *ram = blockgen.getModule().getGlobalVariable("ram", true);
+  Value *indexList[2] = {blockgen.getConstant((addr)0), address};
   Value *ptr = builder.CreateGEP(ram, ArrayRef<Value *>(indexList, 2));
   builder.CreateStore(value, ptr);
 }
