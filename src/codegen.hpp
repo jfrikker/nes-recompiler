@@ -21,12 +21,14 @@ class ModuleGenerator {
     llvm::Type *getWordType() const;
     llvm::Type *getAddrType() const;
     llvm::Type *getFlagType() const;
+    llvm::StructType *getRegStructType() const;
     llvm::Value *getConstant(word val) const;
     llvm::Value *getConstant(addr val) const;
 
   private:
     llvm::Module module;
     const MachineSpec &machine;
+    llvm::StructType *regStructType;
 };
 
 enum Register {
@@ -50,6 +52,7 @@ class BlockGenerator {
     llvm::Type *getWordType() const;
     llvm::Type *getAddrType() const;
     llvm::Type *getFlagType() const;
+    llvm::StructType *getRegStructType() const;
     llvm::Value *getConstant(word val) const;
     llvm::Value *getConstant(addr val) const;
     llvm::Value *getRegValue(Register);

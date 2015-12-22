@@ -6,17 +6,22 @@ using std::map;
 using llvm::Module;
 using llvm::IRBuilder;
 using llvm::Type;
+using llvm::StructType;
 using llvm::Value;
 using llvm::APInt;
 using llvm::Constant;
 using llvm::Function;
 using llvm::BasicBlock;
+using llvm::ArrayRef;
 using llvm::getGlobalContext;
 
 ModuleGenerator::ModuleGenerator(const char *moduleName, const MachineSpec &machine) : 
 machine (machine),
 module(moduleName, getGlobalContext())
-{ }
+{
+  Type *fieldTypes[] = {getWordType(), getWordType(), getWordType(), getFlagType(), getFlagType(), getFlagType(), getFlagType()};
+  regStructType = StructType::create(ArrayRef<Type *>(fieldTypes, 7));
+}
 
 Module &ModuleGenerator::getModule() {
   return module;
@@ -40,6 +45,10 @@ Type *ModuleGenerator::getAddrType() const {
 
 Type *ModuleGenerator::getFlagType() const {
   return Type::getInt1Ty(getGlobalContext());
+}
+
+StructType *ModuleGenerator::getRegStructType() const {
+  return regStructType;
 }
 
 Value *ModuleGenerator::getConstant(word val) const {
@@ -102,6 +111,10 @@ Type *BlockGenerator::getAddrType() const {
 
 Type *BlockGenerator::getFlagType() const {
   return modgen.getFlagType();
+}
+
+StructType *BlockGenerator::getRegStructType() const {
+  return modgen.getRegStructType();
 }
 
 Value *BlockGenerator::getConstant(word val) const {

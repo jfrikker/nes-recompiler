@@ -86,7 +86,7 @@ Function *writeFunctionDecl(addr start, ModuleGenerator &modgen) {
   args.push_back(Type::getInt1Ty(getGlobalContext()));
   args.push_back(Type::getInt1Ty(getGlobalContext()));
   args.push_back(Type::getInt1Ty(getGlobalContext()));
-  FunctionType *ft = FunctionType::get(Type::getVoidTy(getGlobalContext()), args, false);
+  FunctionType *ft = FunctionType::get(modgen.getRegStructType(), args, false);
   Function *func = Function::Create(ft, Function::ExternalLinkage, name, &(modgen.getModule()));
 
   const char *argName[] = {"A", "X", "Y", "N", "V", "Z", "C"};
@@ -138,6 +138,10 @@ void writeFunction(addr start, ModuleGenerator &modgen) {
       writeBlock(previous, blockStart, *(blockMap[previous]));
     }
     previous = blockStart;
+  }
+
+  if (previous != 0) {
+    writeBlock(previous, *(insts.rbegin()) + 1, *(blockMap[previous]));
   }
 
   Register argRegs[] = {REG_A, REG_X, REG_Y, REG_N, REG_V, REG_Z, REG_C};

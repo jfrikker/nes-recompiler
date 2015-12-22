@@ -18,6 +18,8 @@ using llvm::IRBuilder;
 using llvm::Type;
 using llvm::Function;
 using llvm::ArrayRef;
+using llvm::UndefValue;
+using llvm::ConstantStruct;
 
 #include "machine_spec.hpp"
 
@@ -546,6 +548,37 @@ DEF_WORD_ARG_INST(ORA)
 DEF_NO_ARG_INST(RTS)
     virtual bool isTerminal() const {
       return true;
+    }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      Value *undefWord = UndefValue::get(blockgen.getWordType());
+      Value *undefFlag = UndefValue::get(blockgen.getFlagType());
+      Value *s = ConstantStruct::get(blockgen.getRegStructType(), undefWord, undefWord, undefWord, undefFlag, undefFlag, undefFlag, undefFlag, NULL);
+      IRBuilder<> &builder = blockgen.getBuilder();
+
+      unsigned idx[1];
+      idx[0] = 0;
+      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_A), ArrayRef<unsigned>(idx, 1));
+
+      idx[0] = 1;
+      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_X), ArrayRef<unsigned>(idx, 1));
+
+      idx[0] = 2;
+      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_Y), ArrayRef<unsigned>(idx, 1));
+
+      idx[0] = 3;
+      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_N), ArrayRef<unsigned>(idx, 1));
+
+      idx[0] = 4;
+      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_V), ArrayRef<unsigned>(idx, 1));
+
+      idx[0] = 5;
+      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_Z), ArrayRef<unsigned>(idx, 1));
+
+      idx[0] = 6;
+      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_C), ArrayRef<unsigned>(idx, 1));
+
+      builder.CreateRet(s);
     }
 };
 
