@@ -1,7 +1,11 @@
 #pragma once
 
+#include <llvm/IR/Value.h>
+
 #include "memory.hpp"
-#include "codegen.hpp"
+
+class ModuleGenerator;
+class BlockGenerator;
 
 class MachineSpec {
   public:

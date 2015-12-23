@@ -1,7 +1,6 @@
 #pragma once
 
 #include <map>
-#include <memory>
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"

@@ -22,6 +22,7 @@ using llvm::UndefValue;
 using llvm::ConstantStruct;
 
 #include "machine_spec.hpp"
+#include "codegen.hpp"
 
 #define DEF_NO_ARG_INST(OPCODE) class OPCODE : public NoArgInstruction { \
   public: \
