@@ -85,6 +85,10 @@ class ABSArgument : public Argument {
       return address;
     }
 
+    virtual Value *getWordArgExpr(addr instructionAddr, BlockGenerator &blockgen) const {
+      return blockgen.getMachine().generateLoad(address, blockgen);
+    }
+
     virtual bool isAbsolute() const {
       return true;
     }
@@ -123,6 +127,13 @@ class ABSYArgument : public Argument {
 
     addr getEncodedLength() const {
       return 2;
+    }
+
+    virtual Value *getAddrArgExpr(addr instructionAddr, BlockGenerator &blockgen) const {
+      Value *regVal = blockgen.getRegValue(REG_Y);
+      Value *regExt = blockgen.getBuilder().CreateZExt(regVal, blockgen.getAddrType());
+      Value *baseVal = blockgen.getConstant(address);
+      return blockgen.getBuilder().CreateAdd(baseVal, regExt);
     }
 
   private:
@@ -524,7 +535,50 @@ class DEY : public IncrementInstruction {
     IncrementInstruction("DEY", REG_Y, true, location){ }
 };
 
+class TransferInstruction : public NoArgInstruction {
+  public:
+    TransferInstruction(const char *opcode, Register src, Register dest, addr location) :
+    NoArgInstruction(location, opcode),
+    src(src),
+    dest(dest)
+    { }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      Value *srcVal = blockgen.getRegValue(src);
+      blockgen.setRegValue(dest, srcVal);
+      setRegN(srcVal, blockgen);
+      setRegZ(srcVal, blockgen);
+    }
+
+  private:
+    Register src;
+    Register dest;
+};
+
+class TXA : public TransferInstruction {
+  public:
+    TXA(addr location) :
+    TransferInstruction("TXA", REG_X, REG_A, location){ }
+};
+
 DEF_WORD_ARG_INST(BIT)
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      Value *regVal = blockgen.getRegValue(REG_A);
+      Value *operand = arg->getWordArgExpr(location, blockgen);
+
+      Value *value = blockgen.getBuilder().CreateAnd(regVal, operand);
+
+      setRegN(operand, blockgen);
+
+      Value *bit6 = blockgen.getBuilder().CreateAnd(operand, blockgen.getConstant((word)0x40));
+      blockgen.setRegValue(REG_V, blockgen.getBuilder().CreateICmpNE(bit6, blockgen.getConstant((word)0)));
+
+      setRegZ(value, blockgen);
+    }
+};
+
+DEF_WORD_ARG_INST(AND)
 };
 
 DEF_NO_ARG_INST(CLD)
@@ -598,6 +652,8 @@ Instruction *readInstruction(addr address, const MachineSpec &machine) {
       return new BPL(address, new RELArgument(address + 1, machine));
     case 0x20:
       return new JSR(address, new ABSArgument(address + 1, machine));
+    case 0x29:
+      return new AND(address, new IMMArgument(address + 1, machine));
     case 0x2C:
       return new BIT(address, new ABSArgument(address + 1, machine));
     case 0x4C:
@@ -612,6 +668,8 @@ Instruction *readInstruction(addr address, const MachineSpec &machine) {
       return new STX(address, new ZPGArgument(address + 1, machine));
     case 0x88:
       return new DEY(address);
+    case 0x8A:
+      return new TXA(address);
     case 0x8D:
       return new STA(address, new ABSArgument(address + 1, machine));
     case 0x91:
