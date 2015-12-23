@@ -16,6 +16,7 @@ using std::unique_ptr;
 using std::vector;
 
 #include "llvm/IR/Module.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 using llvm::Module;
 using llvm::Type;
@@ -24,8 +25,6 @@ using llvm::Function;
 using llvm::getGlobalContext;
 using llvm::BasicBlock;
 using llvm::IRBuilder;
-
-#include "instruction.hpp"
 
 #include <iostream>
 
@@ -37,6 +36,10 @@ using std::setw;
 
 #include <sstream>
 using std::stringstream;
+
+#include "instruction.hpp"
+#include "machine_spec.hpp"
+#include "codegen.hpp"
 
 void identifyFunction(addr start, const MachineSpec &machine, set<addr> &out) {
   stack<addr> remaining;

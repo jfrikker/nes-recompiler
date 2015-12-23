@@ -4,9 +4,9 @@
 #include <llvm/IR/IRBuilder.h>
 
 #include "memory.hpp"
-#include "codegen.hpp"
 
 class MachineSpec;
+class BlockGenerator;
 
 class Instruction {
   public:

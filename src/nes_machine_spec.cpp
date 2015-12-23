@@ -6,6 +6,7 @@
 using std::vector;
 
 #include "llvm/IR/Module.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 using llvm::Type;
 using llvm::ArrayType;
@@ -21,6 +22,8 @@ using llvm::APInt;
 using llvm::ConstantAggregateZero;
 using llvm::ArrayRef;
 using llvm::Function;
+
+#include "codegen.hpp"
 
 const char *NES_IDENTIFIER = "NES\x1a";
 
