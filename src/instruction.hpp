@@ -17,6 +17,8 @@ class Instruction {
     virtual bool isTerminal() const;
     virtual bool isBranch() const;
     virtual addr getBranchTarget() const;
+    virtual bool isCall() const;
+    virtual addr getCallTarget() const;
     virtual void generateCode(BlockGenerator &codegen) const;
 
     addr getFollowingLocation() const;

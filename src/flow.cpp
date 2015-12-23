@@ -74,7 +74,31 @@ void identifyBlocks(addr start, const set<addr> &function, const MachineSpec &ma
   }
 }
 
-Function *writeFunctionDecl(addr start, ModuleGenerator &modgen) {
+void findReachableFunctions(addr start, const MachineSpec &machine, set<addr> &out) {
+  stack<addr> remaining;
+  remaining.push(start);
+
+  while (!remaining.empty()) {
+    addr address = remaining.top();
+    remaining.pop();
+    if (!out.insert(address).second) {
+      continue;
+    }
+
+    set<addr> function;
+    identifyFunction(address, machine, function);
+
+    for (auto instAddress : function) {
+      unique_ptr<Instruction> instruction(readInstruction(instAddress, machine));
+
+      if (instruction->isCall()) {
+        remaining.push(instruction->getCallTarget());
+      }
+    }
+  }
+}
+
+Function *writeFunctionDecl(addr start, bool external, ModuleGenerator &modgen) {
   char name[7];
   sprintf(name, "f_%04X", start);
 
@@ -87,7 +111,7 @@ Function *writeFunctionDecl(addr start, ModuleGenerator &modgen) {
   args.push_back(Type::getInt1Ty(getGlobalContext()));
   args.push_back(Type::getInt1Ty(getGlobalContext()));
   FunctionType *ft = FunctionType::get(modgen.getRegStructType(), args, false);
-  Function *func = Function::Create(ft, Function::ExternalLinkage, name, &(modgen.getModule()));
+  Function *func = Function::Create(ft, external ? Function::ExternalLinkage : Function::PrivateLinkage, name, &(modgen.getModule()));
 
   const char *argName[] = {"A", "X", "Y", "N", "V", "Z", "C"};
 
@@ -113,14 +137,14 @@ void writeBlock(addr start, addr end, BlockGenerator &blockgen) {
   }
 }
 
-void writeFunction(addr start, ModuleGenerator &modgen) {
+void writeFunction(addr start, bool external, ModuleGenerator &modgen) {
   set<addr> insts;
   identifyFunction(start, modgen.getMachine(), insts);
 
   set<addr> blocks;
   identifyBlocks(start, insts, modgen.getMachine(), blocks);
 
-  Function *func = writeFunctionDecl(start, modgen);
+  Function *func = writeFunctionDecl(start, external, modgen);
 
   BasicBlock *startBlock = BasicBlock::Create(getGlobalContext(), "start", func);
 

@@ -291,6 +291,14 @@ addr Instruction::getBranchTarget() const {
   return 0;
 }
 
+bool Instruction::isCall() const {
+  return false;
+}
+
+addr Instruction::getCallTarget() const {
+  return 0;
+}
+
 addr Instruction::getFollowingLocation() const {
   return location + getEncodedLength();
 }
@@ -589,11 +597,27 @@ DEF_ADDR_ARG_INST(INC)
 
 DEF_ADDR_ARG_INST(JMP)
     virtual bool isTerminal() const {
-      return true;
+      return arg->isAbsolute();
+    }
+
+    virtual bool isCall() const {
+      return arg->isAbsolute();
+    }
+
+    virtual addr getCallTarget() const {
+      return arg->getAddrArg(location);
     }
 };
 
 DEF_ADDR_ARG_INST(JSR)
+
+    virtual bool isCall() const {
+      return true;
+    }
+
+    virtual addr getCallTarget() const {
+      return arg->getAddrArg(location);
+    }
 };
 
 DEF_WORD_ARG_INST(ORA)
