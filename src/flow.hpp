@@ -2,8 +2,6 @@
 
 #include <set>
 
-#include "llvm/IR/Module.h"
-
 #include "memory.hpp"
 
 class ModuleGenerator;

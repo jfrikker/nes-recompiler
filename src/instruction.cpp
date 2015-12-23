@@ -13,6 +13,7 @@ using std::setw;
 using std::ostream;
 
 #include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/IRBuilder.h>
 using llvm::Value;
 using llvm::IRBuilder;
 using llvm::Type;
