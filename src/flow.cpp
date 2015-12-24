@@ -101,7 +101,7 @@ void findReachableFunctions(addr start, const MachineSpec &machine, set<addr> &o
   }
 }
 
-Function *writeFunctionDecl(addr start, bool external, ModuleGenerator &modgen) {
+void declareFunction(addr start, bool external, ModuleGenerator &modgen) {
   char name[7];
   sprintf(name, "f_%04X", start);
 
@@ -122,8 +122,6 @@ Function *writeFunctionDecl(addr start, bool external, ModuleGenerator &modgen) 
   for (auto &arg : func->args()) {
     arg.setName(argName[i++]);
   }
-
-  return func;
 }
 
 void writeBlock(addr start, addr end, BlockGenerator &blockgen) {
@@ -140,14 +138,17 @@ void writeBlock(addr start, addr end, BlockGenerator &blockgen) {
   }
 }
 
-void writeFunction(addr start, bool external, ModuleGenerator &modgen) {
+void writeFunction(addr start, ModuleGenerator &modgen) {
+  char name[7];
+  sprintf(name, "f_%04X", start);
+
+  Function *func = modgen.getModule().getFunction(name);
+
   set<addr> insts;
   identifyFunction(start, modgen.getMachine(), insts);
 
   set<addr> blocks;
   identifyBlocks(start, insts, modgen.getMachine(), blocks);
-
-  Function *func = writeFunctionDecl(start, external, modgen);
 
   BasicBlock *startBlock = BasicBlock::Create(getGlobalContext(), "start", func);
 

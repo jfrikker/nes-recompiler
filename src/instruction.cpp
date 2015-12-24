@@ -319,6 +319,50 @@ void setRegZ(Value *val, BlockGenerator &blockgen) {
   blockgen.setRegValue(REG_Z, z);
 }
 
+void writeCall(addr target, BlockGenerator &blockgen) {
+  char targetName[7];
+  sprintf(targetName, "f_%04X", target);
+
+  Value *args[] = {
+    blockgen.getRegValue(REG_A),
+    blockgen.getRegValue(REG_X),
+    blockgen.getRegValue(REG_Y),
+    blockgen.getRegValue(REG_N),
+    blockgen.getRegValue(REG_V),
+    blockgen.getRegValue(REG_Z),
+    blockgen.getRegValue(REG_C),
+  };
+
+  Function *func = blockgen.getModule().getFunction(targetName);
+  Value *s = blockgen.getBuilder().CreateCall(func, ArrayRef<Value *>(args, 7));
+
+  IRBuilder<> &builder = blockgen.getBuilder();
+  blockgen.setRegValue(REG_A, builder.CreateExtractValue(s, ArrayRef<unsigned>(0)));
+  blockgen.setRegValue(REG_X, builder.CreateExtractValue(s, ArrayRef<unsigned>(1)));
+  blockgen.setRegValue(REG_Y, builder.CreateExtractValue(s, ArrayRef<unsigned>(2)));
+  blockgen.setRegValue(REG_N, builder.CreateExtractValue(s, ArrayRef<unsigned>(3)));
+  blockgen.setRegValue(REG_V, builder.CreateExtractValue(s, ArrayRef<unsigned>(4)));
+  blockgen.setRegValue(REG_Z, builder.CreateExtractValue(s, ArrayRef<unsigned>(5)));
+  blockgen.setRegValue(REG_C, builder.CreateExtractValue(s, ArrayRef<unsigned>(6)));
+}
+
+void writeRet(BlockGenerator &blockgen) {
+  Value *undefWord = UndefValue::get(blockgen.getWordType());
+  Value *undefFlag = UndefValue::get(blockgen.getFlagType());
+  Value *s = ConstantStruct::get(blockgen.getRegStructType(), undefWord, undefWord, undefWord, undefFlag, undefFlag, undefFlag, undefFlag, NULL);
+  IRBuilder<> &builder = blockgen.getBuilder();
+
+  s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_A), ArrayRef<unsigned>(0));
+  s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_X), ArrayRef<unsigned>(1));
+  s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_Y), ArrayRef<unsigned>(2));
+  s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_N), ArrayRef<unsigned>(3));
+  s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_V), ArrayRef<unsigned>(4));
+  s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_Z), ArrayRef<unsigned>(5));
+  s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_C), ArrayRef<unsigned>(6));
+
+  builder.CreateRet(s);
+}
+
 class LoadInstruction : public ArgInstruction {
   public:
     LoadInstruction(const char *opcode, Register reg, addr location, Argument *argument) :
@@ -609,6 +653,14 @@ DEF_ADDR_ARG_INST(JMP)
     virtual addr getCallTarget() const {
       return arg->getAddrArg(location);
     }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      // TODO
+      if (arg->isAbsolute()) {
+        writeCall(arg->getAddrArg(location), blockgen);
+        writeRet(blockgen);
+      }
+    }
 };
 
 DEF_ADDR_ARG_INST(JSR)
@@ -619,6 +671,10 @@ DEF_ADDR_ARG_INST(JSR)
 
     virtual addr getCallTarget() const {
       return arg->getAddrArg(location);
+    }
+
+    virtual void generateCode(BlockGenerator &blockgen) const {
+      writeCall(getCallTarget(), blockgen);
     }
 };
 
@@ -631,34 +687,7 @@ DEF_NO_ARG_INST(RTS)
     }
 
     virtual void generateCode(BlockGenerator &blockgen) const {
-      Value *undefWord = UndefValue::get(blockgen.getWordType());
-      Value *undefFlag = UndefValue::get(blockgen.getFlagType());
-      Value *s = ConstantStruct::get(blockgen.getRegStructType(), undefWord, undefWord, undefWord, undefFlag, undefFlag, undefFlag, undefFlag, NULL);
-      IRBuilder<> &builder = blockgen.getBuilder();
-
-      unsigned idx[1];
-      idx[0] = 0;
-      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_A), ArrayRef<unsigned>(idx, 1));
-
-      idx[0] = 1;
-      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_X), ArrayRef<unsigned>(idx, 1));
-
-      idx[0] = 2;
-      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_Y), ArrayRef<unsigned>(idx, 1));
-
-      idx[0] = 3;
-      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_N), ArrayRef<unsigned>(idx, 1));
-
-      idx[0] = 4;
-      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_V), ArrayRef<unsigned>(idx, 1));
-
-      idx[0] = 5;
-      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_Z), ArrayRef<unsigned>(idx, 1));
-
-      idx[0] = 6;
-      s = builder.CreateInsertValue(s, blockgen.getRegValue(REG_C), ArrayRef<unsigned>(idx, 1));
-
-      builder.CreateRet(s);
+      writeRet(blockgen);
     }
 };
 

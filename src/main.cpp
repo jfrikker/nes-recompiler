@@ -42,6 +42,10 @@ int main(int argc, char **argv) {
   machine->writeLLVMHeader(modgen);
 
   for (auto funcStart : functions) {
+    declareFunction(funcStart, (funcStart == address), modgen);
+  }
+
+  for (auto funcStart : functions) {
     std::set<addr> function;
     std::set<addr> blocks;
     identifyFunction(funcStart, *machine, function);
@@ -58,7 +62,7 @@ int main(int argc, char **argv) {
     }
     std::cout << std::endl;
 
-    writeFunction(funcStart, (funcStart == address), modgen);
+    writeFunction(funcStart, modgen);
   }
 
   modgen.write();
